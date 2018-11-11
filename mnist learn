@@ -1,0 +1,107 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Nov 10 11:04:17 2018
+
+@author: 33021
+"""
+# In[1]
+#### import module
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow.examples.tutorials.mnist.input_data as input_data
+
+# In[2]
+#### load data.
+mnist=input_data.read_data_sets('MNIST_data/',one_hot=True)
+# In[3]
+### show image data.
+b=5
+mnist_data=mnist.train.images.reshape([55000,28,28,1])
+mnist_data=mnist_data[0:10000,:,:,:]
+label=mnist.train.labels[0:10000,:]
+plt.imshow(mnist_data[b,:,:,0])
+plt.show()
+test_data=mnist_data[range(8000,10000),:,:,:];test_label=label[range(8000,10000),:]
+train_data=np.delete(mnist_data,range(8000,10000),axis=0);train_label=np.delete(label,range(8000,10000),axis=0)
+print('training dataset:',train_data.shape)
+print('train labels:',train_label.shape)
+print('testing dataset:',test_data.shape)
+print('testing labels:',test_label.shape)
+# In[4]
+#### define tensorflow graph
+n_classes=10
+X=tf.placeholder(tf.float32,[None,28,28,1])
+Y=tf.placeholder(tf.float32,[None,n_classes])
+keep_prob=tf.placeholder(tf.float32)
+
+learning_rate=0.002
+epoch=25
+batch_size=200
+times=train_data.shape[0]/batch_size
+print('times=',times)
+sess=tf.Session()
+def weight_variable(shape):
+    return tf.Variable(tf.truncated_normal(shape=shape,stddev=0.1))
+def bias_variable(shape):
+    return tf.Variable(tf.constant(0.1,shape=shape))
+def conv2d(x,W):
+    return tf.nn.conv2d(x,W,strides=[1,1,1,1],padding='SAME')
+def max_pool_2x2(x):
+    return tf.nn.max_pool(x,ksize=[1,2,2,1],strides=[1,2,2,1],padding='SAME')
+# In[5]
+## parameters
+W1=weight_variable([6,6,1,6])
+B1=bias_variable([6])
+W2=weight_variable([5,5,6,12])
+B2=bias_variable([12])
+W3=weight_variable([7*7*12,200])
+B3=bias_variable([200])
+W4=weight_variable([200,n_classes])
+B4=bias_variable([n_classes])
+## the model
+Y1=tf.nn.relu(conv2d(X,W1)+B1)
+H1=max_pool_2x2(Y1)
+Y2=tf.nn.relu(conv2d(H1,W2)+B2)
+H2=max_pool_2x2(Y2)
+H2_reshape=tf.reshape(H2,[-1,7*7*12])
+Y3=tf.nn.relu(tf.matmul(H2_reshape,W3)+B3)
+Y3_dropout=tf.nn.dropout(Y3,keep_prob)
+logit=tf.matmul(Y3_dropout,W4)+B4
+Y4=tf.nn.softmax(logit)
+cross_entropy=tf.losses.softmax_cross_entropy(onehot_labels=Y,logits=logit)
+correct_prediction=tf.equal(tf.argmax(Y,1),tf.argmax(Y4,1)) #max value among rows.
+accuracy=tf.reduce_mean(tf.cast(correct_prediction,tf.float32)) #tf.cast transform int value to float32 value.
+prediction=tf.argmax(Y4,1)
+train_step=tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
+saver=tf.train.Saver()
+# In[6]
+init=tf.global_variables_initializer()
+sess=tf.Session()
+sess.run(init)
+
+def CNN(learning_rate,images,labels,epoch):
+    train_acc_value=[]
+    train_loss_value=[]
+    for a in np.arange(epoch):
+        for b in np.arange(times):
+            x_batch=train_data[int(batch_size*b):int(batch_size*(b+1)),:,:,:]
+            y_batch=train_label[int(batch_size*b):int(batch_size*(b+1)),:]
+            opt=sess.run(train_step,feed_dict={X:x_batch,Y:y_batch,keep_prob:0.7})
+            train_loss,train_acc=sess.run([cross_entropy,accuracy],feed_dict={X:x_batch,Y:y_batch,keep_prob:1.0})
+            train_acc_value.append(train_acc)
+            train_loss_value.append(train_loss)
+            print("epoch",a+1,"train_loss:",train_loss,"train_acc,",train_acc)
+    saver.save(sess, "C:/Users/33021/Desktop/CNN python/tfsaver/mnist/model")
+    return {'train_acc_value':train_acc_value,'train_loss_value':train_loss_value}
+# In[7]
+CNNmodel=CNN(learning_rate=learning_rate,images=train_data,labels=train_label,epoch=epoch)
+# In[8]
+plt.plot(CNNmodel['train_acc_value'],label="train_acc")
+plt.plot(CNNmodel['train_loss_value'],label="train_loss")
+plt.legend()
+plt.show()
+# In[9]
+saver.restore(sess,'{}'.format('C:/Users/33021/Desktop/CNN python/tfsaver/mnist/model'))
+test_loss,test_acc=sess.run([cross_entropy,accuracy],feed_dict={X:test_data,Y:test_label,keep_prob:1.0})
+print('test_loss:',test_loss,'test_acc',test_acc)
